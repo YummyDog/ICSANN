@@ -1,0 +1,244 @@
+% Assessment Task 5 
+% Assignment 3 - Q2.2) ANN-based Observer design
+% 
+%
+% 48580 Intelligent Control Studio
+% University of Technology Sydney, Australia
+% Autumn 2026
+%
+% A/Prof Ricardo P. Aguilera
+%
+% Enjoy it!!!
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clc;
+clear
+
+%% Simulation settings
+SN = 24828372;  %replace this with your Student Number
+Tsim = 3;      %simulation time length
+fs = 20;        %controller sampling time
+
+% use estimated control gain from Q2.1)
+K_est = [28.1598    3.3136   -5.2718   -4.0517]; 
+
+%% Noise setting
+pos_noise_var = (0.1/100)^2;
+alpha_sensor_var = deg2rad(0.1)^2;
+add_noise = 1;
+
+%% Observer setting and design targets
+Niter = 100000;           % Number of learning iterations 
+learning_rate = 1;   % learning rate to update W 0.0001
+
+%% Observer design targets
+Tsettling = 0.3;            % estimation settling time
+
+%% Step reference 
+pos_ref = 5/100; % position step reference in rad
+Tstep = 1;      % step reference instant
+
+%% Initial conditions
+xc_o = pos_ref;
+alpha_o = deg2rad(1);
+xo = [xc_o 0 alpha_o 0]';
+xo_hat = [0 0 0 0]';
+%------------------------------------------
+% Initial condition for W = [w1 w1]'
+W1_o = rand(2,1);
+W2_o = rand(2,1);
+W3_o = rand(2,1);
+W4_o = rand(2,1);
+Kf_o = [W1_o'; W2_o'; W3_o'; W4_o'];
+
+%% Plot settings
+plot_iterations = 1;    % 1: plot learning performance
+plot_interval = [1 1];% interval to be plotted while training
+font_size = 16;         % font size for plots
+
+%%  System Parameters
+% these parameters will depend on your student number
+disp('System parameters')
+[Mc,mp,g,Kv,l,bc,bp] = MySysParam(SN)
+
+%% Continuous-Time System model
+[Ac,Bc,Cc] = my_cart_pendulum_model(Mc,mp,l,bc,bp,g,Kv);
+ct_model = ss(Ac,Bc,Cc,0);
+
+%% Discrete-time system model
+%here ts is the controller sampling time
+ts = 1/fs;
+dt_model = c2d(ct_model,ts);
+A = dt_model.A;
+B = dt_model.B;
+C = dt_model.C;
+
+%% Data length 
+time = 0:ts:Tsim;
+N = length(time);
+inv_N = 1/N;
+
+%% prediction model for X_[2:N], Y_[2:N], and Vi_[1:N-1]
+[Psi_1, Psi_2,Psi_3,Psi_4,S] = prediction_model_observer(A,B,C,N-1);
+
+%% Step reference
+Nstep = round(Tstep/ts);
+if (Nstep >N)
+    Nstep = N;
+end
+% y_ref = [0 0 ... 0 ref ref ... ref]'
+y1_ref = [pos_ref*ones(Nstep,1);  2*pos_ref*ones(N-Nstep,1)];
+% x_ref = [y_ref(1) y_ref(2) ... y_ref(N)
+%             0        0     ...   0      ]; angular speed ref = 0
+x_ref = [y1_ref.'; zeros(1, N); zeros(1, N); zeros(1, N)];
+
+%% Run closed-loop system
+[x,y,u] = run_SFC_CL_system(A,B,C,K_est,x_ref,xo);
+Y = reshape(y(2:N), [], 1);
+
+%% sensor noise
+pos_noise = add_noise*sqrt(pos_noise_var)*randn(1, N);
+alpha_noise =  add_noise*sqrt(alpha_sensor_var)*randn(1, N);
+y_noise = [pos_noise; alpha_noise];
+
+%% output target
+Nset = round(Tsettling/ts); % sample when settling time is achieved 
+
+y1_target = y(1,:);
+y1_target(1:Nset) = first_order_filter(y1_target(1:Nset),ts,Tsettling/5);
+
+y2_target = y(2,:);
+y2_target(1:Nset) = first_order_filter(y2_target(1:Nset),ts,Tsettling/5);
+
+y_target = [y1_target; y2_target];
+Y_target = reshape(y_target(:,2:N), [], 1);
+
+%% state target
+x_target = x;
+x_target(1,:) = y1_target; % replace x1 by y1_filtered
+X_target = reshape(x_target(:,2:N), [], 1); % X_[2:N] = [x(2); x(3); ...; x(N) ]
+
+%% ANN Training (Gradient descendant algorithm)
+disp('ANN Training...')
+W1 = W1_o; %initialization 
+W2 = W2_o; %initialization 
+W3 = W3_o; %initialization 
+W4 = W4_o; %initialization 
+J = zeros(1,Niter);
+
+count_plot = 0;
+n =0 ;
+while (n<Niter)
+    n = n+1;
+    %% Predictions: run observer to generate data
+    Kf_est = [W1'; W2'; W3'; W4'];
+    [x_hat,y_hat,v_hat] = run_observer(A,B,C,Kf_est,x,u,xo_hat,y_noise);
+
+    %% ANN input Ye = [y_e(1) y_e(2) ... y_e(N-1)]
+    y_noisy = y + y_noise;
+    Ye = y_noisy(:,1:N-1)-y_hat(:,1:N-1);
+
+    %% Observer output X_hat_[2:N] = [x_hat(2); x_hat(3);...; x_hat(N)]
+    X_hat = reshape(x_hat(:,2:N),[],1); 
+
+    %% Observation error
+    Xe_hat = X_hat - X_target;
+
+    %% Loss function
+    Jx   = inv_N*Xe_hat'*Xe_hat ;
+    J(n) = Jx;
+
+    %% Gradient decent:
+
+    %% Gradient DJx/DW1
+    %-------------------------
+
+    dJx_dW1 =  2/N*Ye*Psi_1'*Xe_hat;
+
+    %% Gradient DJx/DW2
+    %-------------------------
+
+    dJx_dW2 =  2/N*Ye*Psi_2'*Xe_hat;
+
+    %% Gradient DJx/DW3
+    %-------------------------
+
+    dJx_dW3 =  2/N*Ye*Psi_3'*Xe_hat;
+
+    %% Gradient DJx/DW4
+    %-------------------------
+
+    dJx_dW4 =  2/N*Ye*Psi_4'*Xe_hat;
+    
+    %-------------------------
+    DW1_x = 2/N*Ye*Psi_1'*Xe_hat;
+    DW2_x = 2/N*Ye*Psi_2'*Xe_hat;
+    DW3_x = 2/N*Ye*Psi_3'*Xe_hat;
+    DW4_x = 2/N*Ye*Psi_4'*Xe_hat;
+
+    %% W Update
+    W1 = W1 - learning_rate*DW1_x; 
+    W2 = W2 - learning_rate*DW2_x; 
+    W3 = W3 - learning_rate*DW3_x;
+    W4 = W4 - learning_rate*DW4_x;
+
+    % plot each iteration
+    if (J(n)>1e10 || isnan(J(n)))
+        %re-start W
+        W1_o = rand(2,1);
+        W2_o = rand(2,1);
+        W3_o = rand(2,1);
+        W4_o = rand(2,1);
+        W1 = W1_o;
+        W2 = W2_o;
+        W3 = W3_o;
+        W4 = W4_o;
+        n = 0;
+    elseif (plot_iterations == 1)        
+        if (n>=plot_interval(1) && n <=plot_interval(2))
+            plot_results
+            drawnow  
+        end
+        count_plot = count_plot + 1;
+        if count_plot==round(Niter/100)
+            plot_results
+            drawnow  
+            count_plot = 0;
+        end
+        
+    end
+    
+end
+Kf_est = [W1'; W2'; W3'; W4'];
+
+%% final plots
+plot_results
+drawnow
+
+%% Results
+disp('********************************************')
+disp('Resuls:')
+disp(' ')
+disp(['Initial Estimate: Kf_ini = [', num2str(Kf_o(1,:))])
+disp(['                            ', num2str(Kf_o(2,:))])
+disp(['                            ', num2str(Kf_o(3,:))])
+disp(['                            ', num2str(Kf_o(4,:)),']'])
+disp(' ')
+disp(['Final Estimate:   Kf_est = [', num2str(Kf_est(1,:))])
+disp(['                            ', num2str(Kf_est(2,:))])
+disp(['                            ', num2str(Kf_est(2,:))])
+disp(['                            ', num2str(Kf_est(2,:)),']'])
+disp(' ')
+disp(['Final loss value: ', num2str(J(n))])
+eig_AL = eig(A-Kf_est*C);
+disp(['Observer closed-loop poles: [',num2str(eig_AL(1)),' ', ...
+    num2str(eig_AL(2)),' ',num2str(eig_AL(3)),' ', ...
+    num2str(eig_AL(4)),']'])
+
+%% Verification
+Tf = 20;
+sim('sim_ICS2026_inv_pendulum.slx')
+
+%% Verification plot
+% add your final plot here
+figure(901)
+plot(time,x(:,1),'b',time,x_ref,'--k')
