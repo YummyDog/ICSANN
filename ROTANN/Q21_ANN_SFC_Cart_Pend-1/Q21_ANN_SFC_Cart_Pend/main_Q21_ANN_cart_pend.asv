@@ -8,8 +8,8 @@ Tsim = 5;      %simulation time length
 
 %% Training settings
 Niter = 1000;         % Number of learning iterations 
-learning_rate = 0.01;     % learning rate to update W 0.0001
-r = 0.01;               % weighting factor for DU 0.0001
+learning_rate = 0.00001;     % learning rate to update W 0.0001
+r = 0.00001;               % weighting factor for DU 0.0001
 Tsettling = 3;          % settling time
 u_lim = [-12 12];       % input voltage limit
 
@@ -18,7 +18,7 @@ ts = 1/1000;
 %------------------------------------------
 % Initial condition for W = [w1 w2]'
 
-Wo = 0.01*(rand(4,1));
+%Wo = 0.01*(rand(4,1));
 
 %% Step reference 
 pos_ref = pi/12;        % position step reference in rad
@@ -67,8 +67,8 @@ Delta = Jt*Jp - (mp*Lr*lp)^2;
 
 Ac = [0, 0, 1, 0;
      0, 0, 0, 1;
-     0, (mp^2*g*lp^2*Lr)/Delta, -(Jp*(Br+Be))/Delta,  (mp*Lr*lp*Bp)/Delta;
-     0,  -(mp*g*lp*Jt)/Delta,      (mp*Lr*lp*(Br+Be))/Delta, -(Jt*Bp)/Delta];
+     0, -(mp^2*g*lp^2*Lr)/Delta, -(Jp*(Br+Be))/Delta,  (mp*Lr*lp*Bp)/Delta;
+     0,  (mp*g*lp*Jt)/Delta,      (mp*Lr*lp*(Br+Be))/Delta, -(Jt*Bp)/Delta];
 
 Bc = [0;
      0;
@@ -86,6 +86,31 @@ A = dt_model.A;
 B = dt_model.B;
 C = dt_model.C;
 
+Ctheta = [1 0 0 0];
+
+Aaug = [A               zeros(4,1);
+       -ts*Ctheta       1         ];
+
+Baug = [B;
+        0];
+
+
+Ctheta = [1 0 0 0];
+
+Aaug = [A               zeros(4,1);
+       -ts*Ctheta       1         ];
+
+Baug = [B;
+        0];
+
+Qaug = diag([100 100 20 20 20]);
+Raug = 0.001;
+
+Kaug = dlqr(Aaug, Baug, Qaug, Raug);
+
+Kx = Kaug(1:4);
+
+Wo = -Kx';
 
 %% ANN Training data length 
 time = 0:ts:Tsim;
@@ -157,7 +182,7 @@ while (n<Niter)
     DWdu = 2/N*Xe*S'*DU_hat;
     
     %% W Update
-    DW = DWy + r*DWdu;
+    DW = DWy
     W = W - learning_rate*DW;
 
     % plot each iteration
