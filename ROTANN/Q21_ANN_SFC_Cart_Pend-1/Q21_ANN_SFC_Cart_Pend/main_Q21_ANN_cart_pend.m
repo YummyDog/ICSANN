@@ -8,7 +8,7 @@ Tsim = 5;      %simulation time length
 
 %% Training settings
 Niter = 1000;         % Number of learning iterations 
-learning_rate = 40;     % learning rate to update W 0.0001
+learning_rate = 0.01;     % learning rate to update W 0.0001
 r = 0.01;               % weighting factor for DU 0.0001
 Tsettling = 3;          % settling time
 u_lim = [-12 12];       % input voltage limit
@@ -17,7 +17,8 @@ ts = 1/1000;
 
 %------------------------------------------
 % Initial condition for W = [w1 w2]'
-Wo = 40*(rand(4,1)-0.5);
+
+Wo = 0.01*(rand(4,1));
 
 %% Step reference 
 pos_ref = pi/12;        % position step reference in rad
@@ -66,8 +67,8 @@ Delta = Jt*Jp - (mp*Lr*lp)^2;
 
 Ac = [0, 0, 1, 0;
      0, 0, 0, 1;
-     0, -(mp^2*g*lp^2*Lr)/Delta, -(Jp*(Br+Be))/Delta,  (mp*Lr*lp*Bp)/Delta;
-     0,  (mp*g*lp*Jt)/Delta,      (mp*Lr*lp*(Br+Be))/Delta, -(Jt*Bp)/Delta];
+     0, (mp^2*g*lp^2*Lr)/Delta, -(Jp*(Br+Be))/Delta,  (mp*Lr*lp*Bp)/Delta;
+     0,  -(mp*g*lp*Jt)/Delta,      (mp*Lr*lp*(Br+Be))/Delta, -(Jt*Bp)/Delta];
 
 Bc = [0;
      0;
