@@ -7,7 +7,7 @@ clear
 Tsim = 5;      %simulation time length
 
 %% Training settings
-Niter = 1000;         % Number of learning iterations 
+Niter = 1065;         % Number of learning iterations 
 learning_rate = 10;     % learning rate to update W 0.0001
 r = 0.1;               % weighting factor for DU 0.0001
 Tsettling = 3;          % settling time

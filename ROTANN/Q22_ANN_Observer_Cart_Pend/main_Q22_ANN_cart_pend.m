@@ -18,16 +18,16 @@ Tsim = 3;      %simulation time length
 ts = 1/1000;        %controller sampling time
 
 % use estimated control gain from Q2.1)
-K_est = [26.6931    2.5463  -12.7832   -3.6866]; 
+K_est = 1.0e+03 * [-0.1517   -1.1774   -0.0842   -0.0921];
 
 %% Noise setting
-pos_noise_var = (0.1/100)^2;
-alpha_sensor_var = deg2rad(0.1)^2;
+pos_noise_var = 1e-4;
+alpha_sensor_var = 1e-4;
 add_noise = 1;
-
+    
 %% Observer setting and design targets
-Niter = 100000;           % Number of learning iterations 
-learning_rate = 10;   % learning rate to update W 0.0001
+Niter = 100;           % Number of learning iterations 
+learning_rate = 0.1;   % learning rate to update W 0.0001
 
 %% Observer design targets
 Tsettling = 0.3;            % estimation settling time
@@ -99,10 +99,10 @@ xo = [0 0 0 0]';
 xo_hat = [0 0 0 0]';
 %------------------------------------------
 % Initial condition for W = [w1 w1]'
-W1_o = rand(2,1);
-W2_o = rand(2,1);
-W3_o = rand(2,1);
-W4_o = rand(2,1);
+W1_o = [0.246301777945478 -0.013280510405406]';
+W2_o = [-0.007465290689340 0.323673922377557]';
+W3_o = [2.654105268984229 -0.635158375296772]';
+W4_o = [0.026269868368885  4.927945666386226]';
 Kf_o = [W1_o'; W2_o'; W3_o'; W4_o'];
 
 %% Plot settings
@@ -219,24 +219,32 @@ while (n<Niter)
     dJx_dW4 =  2/N*Ye*Psi_4'*Xe_hat;
     
     %-------------------------
+
+    grad_max = 1;
+
+    %dJx_dW1 = max(min(dJx_dW1,grad_max),-grad_max);
+    %dJx_dW2 = max(min(dJx_dW2,grad_max),-grad_max);
+    %dJx_dW3 = max(min(dJx_dW3,grad_max),-grad_max);
+    %dJx_dW4 = max(min(dJx_dW4,grad_max),-grad_max);
+
+
+
     DW1_x = dJx_dW1;
     DW2_x = dJx_dW2;
     DW3_x = dJx_dW3;
     DW4_x = dJx_dW4;
 
+    
+
     %% W Update
     W1 = W1 - learning_rate*DW1_x; 
-    W2 = W2 - learning_rate*DW2_x; 
-    W3 = W3 - learning_rate*DW3_x;
-    W4 = W4 - learning_rate*DW4_x;
+    W2 = W2;
+    W3 = W3;
+    W4 = W4;
 
     % plot each iteration
     if (J(n)>1e10 || isnan(J(n)))
         %re-start W
-        W1_o = rand(2,1);
-        W2_o = rand(2,1);
-        W3_o = rand(2,1);
-        W4_o = rand(2,1);
         W1 = W1_o;
         W2 = W2_o;
         W3 = W3_o;
