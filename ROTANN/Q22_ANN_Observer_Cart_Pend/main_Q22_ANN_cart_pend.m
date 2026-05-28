@@ -14,9 +14,8 @@ clc;
 clear
 
 %% Simulation settings
-SN = 24828372;  %replace this with your Student Number
 Tsim = 3;      %simulation time length
-fs = 20;        %controller sampling time
+ts = 1/1000;        %controller sampling time
 
 % use estimated control gain from Q2.1)
 K_est = [26.6931    2.5463  -12.7832   -3.6866]; 
@@ -34,12 +33,68 @@ learning_rate = 10;   % learning rate to update W 0.0001
 Tsettling = 0.3;            % estimation settling time
 
 %% Step reference 
-pos_ref = 5/100; % position step reference in rad
+pos_ref = pi/12; % position step reference in rad
 Tstep = 1;      % step reference instant
+%%  System Parameters
+g  = 9.81;
+
+Rm = 8.4;
+kt = 0.042;
+km = 0.042;
+Jm = 4.0e-6;
+Jh = 0.6e-6;
+
+md = 0.053;
+rd = 0.0248;
+
+mr = 0.095;
+Lr = 0.085;
+
+mp = 0.024;
+Lp = 0.129;
+
+lr = Lr/2;
+lp = Lp/2;
+
+Jr_arm = (1/3)*mr*Lr^2;
+Jd     = 0.5*md*rd^2;
+Jr     = Jm + Jh + Jd + Jr_arm;
+
+Jp     = (1/3)*mp*Lp^2;
+
+Br = 0;
+Bp = 0;
+
+Ku = kt/Rm;
+Be = kt*km/Rm;
+
+Jt    = Jr + mp*Lr^2;
+Delta = Jt*Jp - (mp*Lr*lp)^2;
+
+Ac = [0, 0, 1, 0;
+     0, 0, 0, 1;
+     0, -(mp^2*g*lp^2*Lr)/Delta, -(Jp*(Br+Be))/Delta,  (mp*Lr*lp*Bp)/Delta;
+     0,  (mp*g*lp*Jt)/Delta,      (mp*Lr*lp*(Br+Be))/Delta, -(Jt*Bp)/Delta];
+
+Bc = [0;
+     0;
+     (Jp*Ku)/Delta;
+    -(mp*Lr*lp*Ku)/Delta];
+
+Cc = [1 0 0 0;
+     0 1 0 0];
+
+ct_model = ss(Ac,Bc,Cc,0);
+
+dt_model = c2d(ct_model,ts);
+
+A = dt_model.A;
+B = dt_model.B;
+C = dt_model.C;
 
 %% Initial conditions
 xc_o = pos_ref;
-alpha_o = deg2rad(1);
+alpha_o = 0;
 xo = [0 0 0 0]';
 xo_hat = [0 0 0 0]';
 %------------------------------------------
@@ -57,20 +112,7 @@ font_size = 16;         % font size for plots
 
 %%  System Parameters
 % these parameters will depend on your student number
-disp('System parameters')
-[Mc,mp,g,Kv,l,bc,bp] = MySysParam(SN)
 
-%% Continuous-Time System model
-[Ac,Bc,Cc] = my_cart_pendulum_model(Mc,mp,l,bc,bp,g,Kv);
-ct_model = ss(Ac,Bc,Cc,0);
-
-%% Discrete-time system model
-%here ts is the controller sampling time
-ts = 1/fs;
-dt_model = c2d(ct_model,ts);
-A = dt_model.A;
-B = dt_model.B;
-C = dt_model.C;
 
 %% Data length 
 time = 0:ts:Tsim;
