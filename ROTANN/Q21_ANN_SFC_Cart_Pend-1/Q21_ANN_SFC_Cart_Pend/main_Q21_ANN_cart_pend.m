@@ -11,7 +11,7 @@ Niter = 1000;         % Number of learning iterations
 learning_rate = 10;     % learning rate to update W 0.0001
 r = 0.1;               % weighting factor for DU 0.0001
 Tsettling = 3;          % settling time
-u_lim = [-10 10];       % input voltage limit
+u_lim = [-12 12];       % input voltage limit
 
 ts = 1/1000;
 
